@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic Web Content Analysis</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Agentic Web Content Analysis</h1>
+            <p class="text-gray-600">Intelligent content extraction and analysis powered by AI agents</p>
+        </header>
+
+        <div class="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-6">
+            <div class="mb-6">
+                <label for="query" class="block text-sm font-medium text-gray-700 mb-2">Enter your query:</label>
+                <div class="flex gap-2">
+                    <input type="text" id="query" 
+                           class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                           placeholder="e.g., Tell me about artificial intelligence">
+                    <button onclick="processQuery()" 
+                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        <i class="fas fa-search mr-2"></i>Search
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading" class="hidden">
+                <div class="flex items-center justify-center py-8">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+            </div>
+
+            <!-- Disambiguation Options -->
+            <div id="disambiguation" class="hidden">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Please select the most relevant option:</h3>
+                <div id="disambiguation-options" class="space-y-3"></div>
+            </div>
+
+            <!-- Conversation Interface -->
+            <div id="conversation" class="hidden">
+                <div class="border-t border-gray-200 pt-6">
+                    <div id="conversation-history" class="space-y-4 mb-4"></div>
+                    <div class="flex gap-2">
+                        <input type="text" id="conversation-input" 
+                               class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                               placeholder="Type your response...">
+                        <button onclick="sendConversationResponse()" 
+                                class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                            <i class="fas fa-paper-plane mr-2"></i>Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="results" class="hidden">
+                <div class="border-t border-gray-200 pt-6">
+                    <h2 id="result-title" class="text-2xl font-bold text-gray-900 mb-4"></h2>
+                    <div class="prose max-w-none">
+                        <p id="result-summary" class="text-gray-700 mb-6"></p>
+                        
+                        <h3 class="text-lg font-medium text-gray-900 mb-3">Key Points:</h3>
+                        <ul id="key-points" class="list-disc pl-5 space-y-2 text-gray-700"></ul>
+                        
+                        <div class="mt-6">
+                            <a id="source-link" href="#" target="_blank" 
+                               class="text-blue-600 hover:text-blue-800 inline-flex items-center">
+                                <i class="fas fa-external-link-alt mr-2"></i>
+                                View Source
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div id="error" class="hidden">
+                <div class="bg-red-50 border-l-4 border-red-400 p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-exclamation-circle text-red-400"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p id="error-message" class="text-sm text-red-700"></p>
+                            <p id="error-details" class="text-xs text-red-600 mt-1"></p>
+                            <p id="error-source" class="text-xs text-red-500 mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Debug Log -->
+            <div class="mt-8 border-t border-gray-200 pt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Process Log</h3>
+                    <button onclick="clearDebugLog()" class="text-sm text-gray-500 hover:text-gray-700">
+                        Clear Log
+                    </button>
+                </div>
+                <div id="debug-log" class="bg-gray-900 rounded-lg p-4 font-mono text-sm overflow-auto max-h-96">
+                    <div class="text-gray-500">No logs yet...</div>
+                </div>
+            </div>
+
+            <!-- Saved Queries -->
+            <div class="mt-8 border-t border-gray-200 pt-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Saved Queries</h3>
+                    <button onclick="loadSavedQueries()" class="text-sm text-gray-500 hover:text-gray-700">
+                        Refresh
+                    </button>
+                </div>
+                <div id="saved-queries" class="space-y-4">
+                    <div class="text-gray-500">Loading saved queries...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentQueryId = null;
+        let conversationHistory = [];
+
+        function addDebugLog(message, type = 'info') {
+            const debugLog = document.getElementById('debug-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `mb-2 border-b border-gray-800 ${getLogTypeClass(type)}`;
+            logEntry.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> ${message}`;
+            debugLog.appendChild(logEntry);
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
+
+        function getLogTypeClass(type) {
+            switch(type) {
+                case 'error':
+                    return 'text-red-400';
+                case 'success':
+                    return 'text-green-400';
+                case 'warning':
+                    return 'text-yellow-400';
+                case 'info':
+                default:
+                    return 'text-blue-400';
+            }
+        }
+
+        function clearDebugLog() {
+            const debugLog = document.getElementById('debug-log');
+            debugLog.innerHTML = '<div class="text-gray-500">No logs yet...</div>';
+        }
+
+        async function processQuery() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) return;
+
+            addDebugLog(`Processing query: "${query}"`);
+
+            // Show loading state
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('disambiguation').classList.add('hidden');
+            document.getElementById('conversation').classList.add('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('error').classList.add('hidden');
+
+            try {
+                addDebugLog('Sending request to /api/v1/process');
+                const response = await fetch('/api/v1/process', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query }),
+                });
+
+                const data = await response.json();
+                
+                // Log agent information if available
+                if (data.agent_info) {
+                    addDebugLog(`Current Agent: ${data.agent_info.name}`);
+                    addDebugLog(`Agent Status: ${data.agent_info.status}`);
+                    if (data.agent_info.error) {
+                        addDebugLog(`Agent Error: ${data.agent_info.error}`, 'error');
+                    }
+                }
+                
+                addDebugLog(`Received response: ${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok) {
+                    if (data.status === 'needs_disambiguation') {
+                        addDebugLog('Query needs disambiguation');
+                        if (data.needs_conversation) {
+                            addDebugLog('Starting conversation flow');
+                            showConversation(data.conversation_prompt, data.query_id);
+                        } else {
+                            addDebugLog('Showing disambiguation options');
+                            showDisambiguation(data.options, data.query_id);
+                        }
+                    } else {
+                        addDebugLog('Showing results');
+                        showResults(data);
+                    }
+                } else {
+                    addDebugLog(`Error: ${data.detail || 'An error occurred'}`, 'error');
+                    showError(data.detail || 'An error occurred', data);
+                }
+            } catch (error) {
+                addDebugLog(`Exception: ${error.message}`, 'error');
+                showError('Failed to process query', error);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        function showDisambiguation(options, queryId) {
+            currentQueryId = queryId;
+            const container = document.getElementById('disambiguation-options');
+            container.innerHTML = '';
+
+            options.forEach((option, index) => {
+                const button = document.createElement('button');
+                button.className = 'w-full text-left p-4 border rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500';
+                button.innerHTML = `
+                    <div class="font-medium text-gray-900">${option.topic}</div>
+                    <div class="text-sm text-gray-500">${option.description}</div>
+                `;
+                button.onclick = () => handleDisambiguation(option.topic);
+                container.appendChild(button);
+            });
+
+            document.getElementById('disambiguation').classList.remove('hidden');
+        }
+
+        function showConversation(prompt, queryId) {
+            currentQueryId = queryId;
+            conversationHistory = [];
+            
+            const historyContainer = document.getElementById('conversation-history');
+            historyContainer.innerHTML = `
+                <div class="flex items-start space-x-3">
+                    <div class="flex-shrink-0">
+                        <div class="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
+                            <i class="fas fa-robot text-white"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 bg-gray-50 rounded-lg p-3">
+                        <p class="text-gray-900">${prompt}</p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('conversation').classList.remove('hidden');
+            document.getElementById('conversation-input').focus();
+        }
+
+        function addToConversationHistory(message, isUser = false) {
+            const historyContainer = document.getElementById('conversation-history');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex items-start space-x-3';
+            messageDiv.innerHTML = `
+                <div class="flex-shrink-0">
+                    <div class="h-8 w-8 rounded-full ${isUser ? 'bg-gray-600' : 'bg-blue-600'} flex items-center justify-center">
+                        <i class="fas ${isUser ? 'fa-user' : 'fa-robot'} text-white"></i>
+                    </div>
+                </div>
+                <div class="flex-1 bg-gray-50 rounded-lg p-3">
+                    <p class="text-gray-900">${message}</p>
+                </div>
+            `;
+            historyContainer.appendChild(messageDiv);
+            historyContainer.scrollTop = historyContainer.scrollHeight;
+        }
+
+        async function sendConversationResponse() {
+            const input = document.getElementById('conversation-input');
+            const response = input.value.trim();
+            if (!response) return;
+
+            addToConversationHistory(response, true);
+            input.value = '';
+
+            document.getElementById('loading').classList.remove('hidden');
+
+            try {
+                const result = await handleDisambiguation(response);
+                if (result.status === 'needs_conversation') {
+                    addToConversationHistory(result.conversation_prompt);
+                }
+            } catch (error) {
+                showError('Failed to process response');
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        async function handleDisambiguation(selectedOption) {
+            addDebugLog(`Handling disambiguation for option: "${selectedOption}"`);
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('disambiguation').classList.add('hidden');
+
+            try {
+                addDebugLog('Sending disambiguation request to /api/v1/disambiguate');
+                const response = await fetch('/api/v1/disambiguate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query_id: currentQueryId,
+                        selected_option: selectedOption,
+                    }),
+                });
+
+                const data = await response.json();
+                
+                // Log agent information if available
+                if (data.agent_info) {
+                    addDebugLog(`Current Agent: ${data.agent_info.name}`);
+                    addDebugLog(`Agent Status: ${data.agent_info.status}`);
+                    if (data.agent_info.error) {
+                        addDebugLog(`Agent Error: ${data.agent_info.error}`, 'error');
+                    }
+                }
+                
+                addDebugLog(`Received disambiguation response: ${JSON.stringify(data, null, 2)}`);
+
+                if (response.ok) {
+                    if (data.status === 'needs_conversation') {
+                        addDebugLog('Disambiguation needs further conversation');
+                        return data;
+                    } else {
+                        addDebugLog('Processing disambiguation results');
+                        showResults(data);
+                    }
+                } else {
+                    addDebugLog(`Disambiguation error: ${data.detail || 'An error occurred'}`, 'error');
+                    showError(data.detail || 'An error occurred');
+                }
+            } catch (error) {
+                addDebugLog(`Disambiguation exception: ${error.message}`, 'error');
+                showError('Failed to process disambiguation');
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+            }
+        }
+
+        function showResults(data) {
+            addDebugLog('Displaying results:');
+            addDebugLog(`- Title: ${data.title}`);
+            addDebugLog(`- URL: ${data.url}`);
+            addDebugLog(`- Summary length: ${data.summary?.length || 0} characters`);
+            
+            document.getElementById('result-title').textContent = data.title;
+            document.getElementById('result-summary').textContent = data.summary;
+            
+            const keyPointsList = document.getElementById('key-points');
+            keyPointsList.innerHTML = data.key_points.map(point => 
+                `<li>${point}</li>`
+            ).join('');
+            
+            const sourceLink = document.getElementById('source-link');
+            sourceLink.href = data.url;
+            
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('conversation').classList.add('hidden');
+        }
+
+        function showError(message, error = null) {
+            const errorMessage = document.getElementById('error-message');
+            const errorDetails = document.getElementById('error-details');
+            const errorSource = document.getElementById('error-source');
+            
+            errorMessage.textContent = message;
+            
+            if (error) {
+                // Show detailed error information
+                if (error.error) {
+                    errorDetails.textContent = `Error Type: ${error.error.type || 'Unknown'}`;
+                    if (error.error.message) {
+                        errorSource.textContent = `Details: ${error.error.message}`;
+                        addDebugLog(`Error details: ${error.error.message}`, 'error');
+                        if (error.error.type === 'invalid_request_error') {
+                            addDebugLog('This appears to be a context length error. The content being processed is too large for the model.', 'error');
+                            // Log which agent was processing when the error occurred
+                            if (error.agent_info) {
+                                addDebugLog(`Error occurred in agent: ${error.agent_info.name}`, 'error');
+                                addDebugLog(`Agent was processing: ${error.agent_info.current_operation || 'unknown operation'}`, 'error');
+                            }
+                        }
+                    }
+                } else if (error.message) {
+                    errorDetails.textContent = `Error: ${error.message}`;
+                    addDebugLog(`Error: ${error.message}`, 'error');
+                }
+                
+                // Log the full error for debugging
+                console.error('Full error details:', error);
+                addDebugLog(`Full error: ${JSON.stringify(error, null, 2)}`, 'error');
+            } else {
+                errorDetails.textContent = '';
+                errorSource.textContent = '';
+            }
+            
+            document.getElementById('error').classList.remove('hidden');
+        }
+
+        // Handle Enter key in inputs
+        document.getElementById('query').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                processQuery();
+            }
+        });
+
+        document.getElementById('conversation-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendConversationResponse();
+            }
+        });
+
+        // Add event listener for loading state changes
+        const loadingElement = document.getElementById('loading');
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.attributeName === 'class') {
+                    const isVisible = !loadingElement.classList.contains('hidden');
+                    addDebugLog(`Loading state changed: ${isVisible ? 'Started' : 'Finished'}`);
+                }
+            });
+        });
+        observer.observe(loadingElement, { attributes: true });
+
+        async function loadSavedQueries() {
+            const savedQueriesContainer = document.getElementById('saved-queries');
+            savedQueriesContainer.innerHTML = '<div class="text-gray-500">Loading saved queries...</div>';
+            
+            try {
+                addDebugLog('Fetching saved queries...', 'info');
+                const response = await fetch('/api/v1/queries');
+                const queries = await response.json();
+                
+                if (queries.length === 0) {
+                    savedQueriesContainer.innerHTML = '<div class="text-gray-500">No saved queries yet.</div>';
+                    return;
+                }
+
+                savedQueriesContainer.innerHTML = queries.map(query => `
+                    <div class="bg-white p-4 rounded-lg shadow">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="font-medium text-gray-900">${query.original_query}</h4>
+                                <p class="text-sm text-gray-500">Topic: ${query.extracted_topic}</p>
+                                <p class="text-sm text-gray-500">Confidence: ${(query.confidence * 100).toFixed(1)}%</p>
+                                <p class="text-sm text-gray-500">Created: ${new Date(query.created_at).toLocaleString()}</p>
+                            </div>
+                            <button onclick="viewQueryDetails(${query.id})" 
+                                    class="text-blue-600 hover:text-blue-800 text-sm">
+                                View Details
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
+                
+                addDebugLog(`Loaded ${queries.length} saved queries`, 'success');
+            } catch (error) {
+                addDebugLog(`Error loading saved queries: ${error.message}`, 'error');
+                savedQueriesContainer.innerHTML = '<div class="text-red-500">Error loading saved queries.</div>';
+            }
+        }
+
+        async function viewQueryDetails(queryId) {
+            try {
+                addDebugLog(`Fetching details for query ${queryId}...`, 'info');
+                const response = await fetch(`/api/v1/query/${queryId}`);
+                const data = await response.json();
+                
+                // Show results in the main results section
+                if (data.results && data.results.length > 0) {
+                    const result = data.results[0];  // Get the first result
+                    showResults({
+                        title: result.title,
+                        url: result.wikipedia_url,
+                        summary: result.summary
+                    });
+                }
+                
+                addDebugLog(`Loaded details for query ${queryId}`, 'success');
+            } catch (error) {
+                addDebugLog(`Error loading query details: ${error.message}`, 'error');
+                showError('Failed to load query details', error);
+            }
+        }
+
+        // Load saved queries when the page loads
+        document.addEventListener('DOMContentLoaded', loadSavedQueries);
+    </script>
+</body>
+</html> 
