@@ -109,7 +109,6 @@ async def process_query(
                 "status": "needs_disambiguation",
                 "options": disambiguation.options,
                 "query_id": db_query.id,
-                "needs_conversation": disambiguation.needs_conversation,
                 "conversation_prompt": disambiguation.conversation_prompt,
                 "agent_info": {
                     "name": "Disambiguator",
@@ -292,8 +291,6 @@ async def handle_disambiguation(
             "title": search_results.title,
             "url": search_results.url,
             "summary": summary.summary,
-            "key_points": summary.key_points,
-            "confidence": summary.confidence,
             "agent_info": {
                 "name": "Summarizer",
                 "status": "completed",

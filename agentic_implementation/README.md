@@ -1,99 +1,100 @@
-# Agentic Web Content Analysis System
+# Wikipedia Topic Explorer
 
-A sophisticated multi-agent system for intelligent web content extraction and analysis. This system uses a series of specialized agents to process user queries, extract relevant content, and provide meaningful summaries.
+A powerful application that uses AI to search, analyze, and summarize Wikipedia articles. Built with FastAPI, LangChain, and PostgreSQL.
 
 ## Features
 
-- **Multi-Agent Architecture**: Implements a chain of specialized agents for different tasks
-- **Intelligent Topic Extraction**: Uses AI to understand and extract topics from user queries
-- **Smart Disambiguation**: Handles ambiguous queries through interactive chat
-- **Wikipedia Integration**: Seamless Wikipedia content search and extraction
-- **Content Analysis**: Advanced content scraping and summarization
-- **Modern Web Interface**: Clean and responsive UI with real-time updates
+- **AI-Powered Topic Extraction**: Automatically identifies the main topic from user queries
+- **Smart Disambiguation**: Handles ambiguous topics with interactive clarification
+- **Efficient Summarization**: Uses map-reduce chain for processing large articles
+- **Persistent Storage**: Saves queries and results in PostgreSQL database
+- **Real-time Processing**: Asynchronous processing with detailed logging
+- **Modern UI**: Clean, responsive interface with real-time updates
 
-## Agent Workflow
-
-1. **Topic Extraction Agent**: Analyzes user queries to identify main topics
-2. **Disambiguation Agent**: Resolves ambiguous queries through chat interaction
-3. **Wikipedia Search Agent**: Searches Wikipedia for relevant content
-4. **Alternative Search Agent**: Provides fallback search using wikipedia package
-5. **Content Scraping Agent**: Extracts content from identified pages
-6. **Summarization Agent**: Creates concise summaries of scraped content
-7. **Result Delivery Agent**: Presents results in a user-friendly format
-
-## Tech Stack
-
-- **Backend**: FastAPI
-- **Frontend**: HTML, CSS, JavaScript
-- **AI/ML**: LangChain, OpenAI GPT-3.5-turbo
-- **Database**: PostgreSQL
-- **Web Scraping**: BeautifulSoup4, aiohttp
-- **Wikipedia Integration**: wikipedia package
-
-## Getting Started
-
-### Prerequisites
+## Prerequisites
 
 - Python 3.8+
+- Docker and Docker Compose
 - OpenAI API key
-- PostgreSQL database
 
-### Installation
+## Setup
 
 1. Clone the repository:
-   ```bash
-   git clone <repository-url>
-   cd agentic_implementation
-   ```
-
-2. Create a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. Create a `.env` file with your configuration:
-   ```
-   OPENAI_API_KEY=your_api_key_here
-   DATABASE_URL=postgresql://user:password@localhost:5432/dbname
-   ```
-
-5. Run the application:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-## Project Structure
-
+```bash
+git clone <repository-url>
+cd wikipedia-topic-explorer
 ```
-app/
-├── agents/
-│   ├── topic_extractor.py
-│   ├── disambiguator.py
-│   ├── wikipedia_search.py
-│   ├── content_scraper.py
-│   ├── summarizer.py
-│   └── result_delivery.py
-├── core/
-│   ├── config.py
-│   └── security.py
-├── db/
-│   ├── database.py
-│   └── models.py
-├── static/
-├── templates/
-└── main.py
+
+2. Create a `.env` file in the root directory:
+```env
+OPENAI_API_KEY=your_api_key_here
+OPENAI_MODEL=gpt-3.5-turbo
+WIKIPEDIA_LANGUAGE=en
 ```
+
+3. Start the application using Docker Compose:
+```bash
+docker-compose up --build
+```
+
+The application will be available at `http://localhost:8000`
+
+## Usage
+
+1. Open your browser and navigate to `http://localhost:8000`
+2. Enter a topic or question in the search box
+3. The system will:
+   - Extract the main topic
+   - Search Wikipedia
+   - Generate a concise summary
+   - Display the results
+
+### Example Queries
+
+- "Tell me about artificial intelligence"
+- "What is quantum computing?"
+- "Explain the history of the internet"
+
+## API Endpoints
+
+- `POST /api/v1/process`: Process a new query
+- `POST /api/v1/disambiguate`: Handle disambiguation selection
+- `GET /api/v1/queries`: Get all saved queries
+- `GET /api/v1/results`: Get all saved results
+- `GET /api/v1/query/{query_id}`: Get a specific query and its results
+
+## Architecture
+
+The application uses a multi-agent architecture:
+
+1. **Topic Extractor**: Identifies the main topic from user queries
+2. **Disambiguator**: Handles ambiguous topics with interactive clarification
+3. **Wikipedia Searcher**: Retrieves relevant Wikipedia articles
+4. **Summarizer**: Generates concise summaries using map-reduce chain
+
+## Error Handling
+
+The system includes comprehensive error handling:
+- Context length management
+- Automatic retries with smaller chunks
+- Detailed error logging
+- User-friendly error messages
+
+## Recent Updates
+
+- Improved summarization with map-reduce chain
+- Enhanced error handling and logging
+- Added API endpoints for query history
+- Optimized chunk sizes for better performance
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a Pull Request
 
 ## License
 
-This project is licensed under the MIT License. 
+This project is licensed under the MIT License - see the LICENSE file for details. 

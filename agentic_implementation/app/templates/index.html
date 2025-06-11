@@ -64,9 +64,6 @@
                     <div class="prose max-w-none">
                         <p id="result-summary" class="text-gray-700 mb-6"></p>
                         
-                        <h3 class="text-lg font-medium text-gray-900 mb-3">Key Points:</h3>
-                        <ul id="key-points" class="list-disc pl-5 space-y-2 text-gray-700"></ul>
-                        
                         <div class="mt-6">
                             <a id="source-link" href="#" target="_blank" 
                                class="text-blue-600 hover:text-blue-800 inline-flex items-center">
@@ -222,15 +219,40 @@
             const container = document.getElementById('disambiguation-options');
             container.innerHTML = '';
 
+            // Show the options
             options.forEach((option, index) => {
                 const button = document.createElement('button');
-                button.className = 'w-full text-left p-4 border rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500';
+                button.className = 'w-full text-left p-4 border rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-3';
                 button.innerHTML = `
                     <div class="font-medium text-gray-900">${option.topic}</div>
                     <div class="text-sm text-gray-500">${option.description}</div>
                 `;
                 button.onclick = () => handleDisambiguation(option.topic);
                 container.appendChild(button);
+            });
+
+            // Show the conversation interface
+            const conversationDiv = document.createElement('div');
+            conversationDiv.className = 'mt-4 border-t border-gray-200 pt-4';
+            conversationDiv.innerHTML = `
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Or describe what you're looking for:</h4>
+                <div class="flex gap-2">
+                    <input type="text" id="disambiguation-input" 
+                           class="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                           placeholder="Type your response...">
+                    <button onclick="handleDisambiguation(document.getElementById('disambiguation-input').value)" 
+                            class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        <i class="fas fa-paper-plane mr-2"></i>Send
+                    </button>
+                </div>
+            `;
+            container.appendChild(conversationDiv);
+
+            // Add event listener for Enter key
+            document.getElementById('disambiguation-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleDisambiguation(this.value);
+                }
             });
 
             document.getElementById('disambiguation').classList.remove('hidden');
@@ -357,11 +379,6 @@
             
             document.getElementById('result-title').textContent = data.title;
             document.getElementById('result-summary').textContent = data.summary;
-            
-            const keyPointsList = document.getElementById('key-points');
-            keyPointsList.innerHTML = data.key_points.map(point => 
-                `<li>${point}</li>`
-            ).join('');
             
             const sourceLink = document.getElementById('source-link');
             sourceLink.href = data.url;

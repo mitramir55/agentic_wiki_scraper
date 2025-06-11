@@ -23,8 +23,9 @@ class TopicExtractor:
             ("system", """You are a topic extraction expert. Your task is to:
             1. Extract the main topic from the user's query
             2. Determine if the topic is ambiguous
-            3. Provide a confidence score
-            
+            3. Provide a confidence score. This score should be a number between 0 and 1.
+            If the user is asking for a topic like a single name like "Meryl" or "Washington" or "Python" or any other name that can refer to multiple things, set the confidence score to less than 0.7.
+             
             {format_instructions}"""),
             ("user", "{query}")
         ])
