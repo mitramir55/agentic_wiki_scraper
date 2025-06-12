@@ -37,7 +37,7 @@ class QueryRequest(BaseModel):
 
 class DisambiguationRequest(BaseModel):
     query_id: int
-    selected_option: str
+    user_selected_option: str
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -95,13 +95,14 @@ async def process_query(
         db.commit()
         db.refresh(db_query)
         logger.info(f"[{request_id}] Query stored with ID: {db_query.id}")
+        logger.info(f"[{request_id}] topic extracted: {topic_extraction.topic}")
         
         # 2. Check if we need disambiguation based on topic extraction confidence
         if topic_extraction.confidence < 0.7:
             logger.info(f"[{request_id}] Low confidence ({topic_extraction.confidence}), getting disambiguation options...")
             # If confidence is low, get disambiguation options
             disambiguation = await disambiguator.get_disambiguation_options(
-                topic_extraction.topic,
+                topic=topic_extraction.topic,
                 context=request.query
             )
             logger.info(f"[{request_id}] Generated {len(disambiguation.options)} disambiguation options")
@@ -109,7 +110,8 @@ async def process_query(
                 "status": "needs_disambiguation",
                 "options": disambiguation.options,
                 "query_id": db_query.id,
-                "conversation_prompt": disambiguation.conversation_prompt,
+                "Initial_prompt": disambiguator.prompt,
+                "Selection_prompt": disambiguator.selection_prompt,
                 "agent_info": {
                     "name": "Disambiguator",
                     "status": "processing",
@@ -237,42 +239,23 @@ async def handle_disambiguation(
         if not db_query:
             raise HTTPException(status_code=404, detail="Query not found")
         
-        # Get the disambiguation options
-        disambiguation = await disambiguator.get_disambiguation_options(
-            db_query.extracted_topic,
-            context=db_query.original_query
-        )
+        # Handle the user's response directly
+        selected = await disambiguator.select_option(None, request.user_selected_option)
         
-        # Handle the user's response
-        selected = await disambiguator.select_option(disambiguation, request.selected_option)
-        
-        if selected is None:
-            # If still need conversation, return the next question
-            return {
-                "status": "needs_conversation",
-                "conversation_prompt": disambiguation.conversation_prompt,
-                "query_id": request.query_id,
-                "agent_info": {
-                    "name": "Disambiguator",
-                    "status": "processing",
-                    "current_operation": "conversation"
-                }
-            }
-        
-        # Search Wikipedia with the selected option
-        search_results = await wikipedia_searcher.search(selected.topic)
+        # Search Wikipedia with the selected topic
+        search_results = await wikipedia_searcher.search(selected.disambiguated_topic)
         
         if not search_results:
             raise HTTPException(status_code=404, detail="No results found")
         
         # Get content and summarize
-        logger.info("Getting full content...")
+        logger.info(f"Getting full content for topic: {selected.disambiguated_topic}")
         content = await wikipedia_searcher.get_full_content(search_results.url)
         
         if not content:
             raise HTTPException(status_code=404, detail="Could not retrieve content")
         
-        logger.info("Summarizing content...")
+        logger.info(f"Summarizing content for topic: {selected.disambiguated_topic}")
         summary = await summarizer.summarize(content)
         
         # Store result in database
@@ -291,6 +274,7 @@ async def handle_disambiguation(
             "title": search_results.title,
             "url": search_results.url,
             "summary": summary.summary,
+            "selected_topic": selected.disambiguated_topic,
             "agent_info": {
                 "name": "Summarizer",
                 "status": "completed",

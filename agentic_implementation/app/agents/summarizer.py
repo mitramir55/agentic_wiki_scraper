@@ -113,9 +113,9 @@ class Summarizer:
             
             # Ensure summary is not longer than 100 words
             words = summary_text.split()
-            if len(words) > 100:
-                logger.info(f"Truncating summary from {len(words)} to 100 words")
-                summary_text = ' '.join(words[:100]) + '...'
+            if len(words) > 300:
+                logger.info(f"Truncating summary from {len(words)} to 300 words")
+                summary_text = ' '.join(words[:300]) + '...'
             
             logger.info("Summarization completed successfully")
             return Summary(summary=summary_text)

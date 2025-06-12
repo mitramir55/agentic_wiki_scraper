@@ -334,7 +334,7 @@
                     },
                     body: JSON.stringify({
                         query_id: currentQueryId,
-                        selected_option: selectedOption,
+                        user_selected_option: selectedOption,
                     }),
                 });
 
@@ -352,13 +352,8 @@
                 addDebugLog(`Received disambiguation response: ${JSON.stringify(data, null, 2)}`);
 
                 if (response.ok) {
-                    if (data.status === 'needs_conversation') {
-                        addDebugLog('Disambiguation needs further conversation');
-                        return data;
-                    } else {
-                        addDebugLog('Processing disambiguation results');
-                        showResults(data);
-                    }
+                    addDebugLog('Processing disambiguation results');
+                    showResults(data);
                 } else {
                     addDebugLog(`Disambiguation error: ${data.detail || 'An error occurred'}`, 'error');
                     showError(data.detail || 'An error occurred');
