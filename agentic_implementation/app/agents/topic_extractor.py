@@ -7,8 +7,6 @@ from app.core.config import settings
 
 class TopicExtraction(BaseModel):
     topic: str = Field(description="The main topic extracted from the query")
-    confidence: float = Field(description="Confidence score of the extraction (0-1)")
-    is_ambiguous: bool = Field(description="Whether the topic is ambiguous and needs disambiguation")
 
 class TopicExtractor:
     def __init__(self):
@@ -20,14 +18,10 @@ class TopicExtractor:
         self.parser = PydanticOutputParser(pydantic_object=TopicExtraction)
         
         self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a topic extraction expert. Your task is to:
-            1. Extract the main topic from the user's query
-            2. Determine if the topic is ambiguous
-            3. If the query is ambiguous, set the confidence score to LESS THAN 0.7 — even if one interpretation seems dominant./
-            As an example, if the query contains a single name like "meryl" or "washington" or "python" or any other name that can refer to multiple people orthings,/
-            make sure to set the confidence score to less than 0.7. Also if the topic is not clearly defined, set the confidence score to less than 0.7.
-             These should have low confidence scores, such as 0.4 or 0.5, regardless of how commonly known one interpretation may be.
-             
+            ("system", """You are a topic extraction expert. Your task is to extract the main topic from the user's query.
+            Focus on identifying the core subject or concept that the user is interested in.
+            If the query is unclear or could refer to multiple topics, extract the most likely topic based on the context.
+            
             {format_instructions}"""),
             ("user", "{query}")
         ])

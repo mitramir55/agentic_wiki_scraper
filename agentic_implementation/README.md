@@ -7,6 +7,7 @@ A powerful application that uses AI to search, analyze, and summarize Wikipedia 
 - **AI-Powered Topic Extraction**: Automatically identifies the main topic from user queries
 - **Smart Disambiguation**: Handles ambiguous topics with interactive clarification
 - **Efficient Summarization**: Uses map-reduce chain for processing large articles
+- **Smart Search**: Returns the best matching Wikipedia article for your topic
 - **Persistent Storage**: Saves queries and results in PostgreSQL database
 - **Real-time Processing**: Asynchronous processing with detailed logging
 - **Modern UI**: Clean, responsive interface with real-time updates

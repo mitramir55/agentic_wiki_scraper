@@ -16,7 +16,6 @@ from app.core.config import settings
 from app.db.database import get_db, engine
 from app.db import models
 from app.agents.topic_extractor import TopicExtractor, TopicExtraction
-from app.agents.disambiguator import Disambiguator, DisambiguationResult
 from app.agents.wikipedia_search import WikipediaSearcher, WikipediaSearchResult
 from app.agents.summarizer import Summarizer, Summary
 
@@ -59,7 +58,6 @@ templates = Jinja2Templates(directory="app/templates")
 
 # Initialize agents
 topic_extractor = TopicExtractor()
-disambiguator = Disambiguator()
 wikipedia_searcher = WikipediaSearcher()
 summarizer = Summarizer()
 
@@ -82,102 +80,64 @@ async def process_query(
         # 1. Extract topic
         logger.info(f"[{request_id}] Starting topic extraction...")
         topic_extraction = await topic_extractor.extract_topic(request.query)
-        logger.info(f"[{request_id}] Topic extracted: {topic_extraction.topic} (confidence: {topic_extraction.confidence})")
+        logger.info(f"[{request_id}] Topic extracted: {topic_extraction.topic}")
         
         # Store query in database
         logger.info(f"[{request_id}] Storing query in database...")
         db_query = models.Query(
             original_query=request.query,
-            extracted_topic=topic_extraction.topic,
-            confidence=topic_extraction.confidence
+            extracted_topic=topic_extraction.topic
         )
         db.add(db_query)
         db.commit()
         db.refresh(db_query)
         logger.info(f"[{request_id}] Query stored with ID: {db_query.id}")
-        logger.info(f"[{request_id}] topic extracted: {topic_extraction.topic}")
         
-        # 2. Check if we need disambiguation based on topic extraction confidence
-        if topic_extraction.confidence < 0.7:
-            logger.info(f"[{request_id}] Low confidence ({topic_extraction.confidence}), getting disambiguation options...")
-            # If confidence is low, get disambiguation options
-            disambiguation = await disambiguator.get_disambiguation_options(
-                topic=topic_extraction.topic,
-                context=request.query
-            )
-            logger.info(f"[{request_id}] Generated {len(disambiguation.options)} disambiguation options")
-            return {
-                "status": "needs_disambiguation",
-                "options": disambiguation.options,
-                "query_id": db_query.id,
-                "Initial_prompt": disambiguator.prompt,
-                "Selection_prompt": disambiguator.selection_prompt,
-                "agent_info": {
-                    "name": "Disambiguator",
-                    "status": "processing",
-                    "current_operation": "generating_options",
-                    "request_id": request_id
-                }
-            }
-        
-        # 3. If confidence is high enough, search Wikipedia
+        # 2. Search Wikipedia
         logger.info(f"[{request_id}] Searching Wikipedia for topic: {topic_extraction.topic}")
         search_results = await wikipedia_searcher.search(topic_extraction.topic)
         
         if not search_results:
-            logger.error(f"[{request_id}] No Wikipedia results found for topic: {topic_extraction.topic}")
-            raise HTTPException(status_code=404, detail="No results found")
+            logger.info(f"[{request_id}] No Wikipedia results found, prompting for clearer information")
+            return {
+                "status": "needs_clarification",
+                "message": "I couldn't find any Wikipedia articles matching your query. Could you please provide more specific information about what you're looking for?",
+                "query_id": db_query.id,
+                "original_query": request.query,
+                "extracted_topic": topic_extraction.topic,
+                "agent_info": {
+                    "name": "WikipediaSearcher",
+                    "status": "no_results",
+                    "current_operation": "search",
+                    "request_id": request_id
+                }
+            }
         
-        logger.info(f"[{request_id}] Found Wikipedia article: {search_results.title}")
-        logger.info(f"[{request_id}] Article URL: {search_results.url}")
+        # Get multiple search results (at least 3)
+        search_results_list = []
+        if isinstance(search_results, list):
+            search_results_list = search_results[:3]  # Take first 3 results
+        else:
+            search_results_list = [search_results]  # Single result case
         
-        # 4. Get content and summarize
-        logger.info(f"[{request_id}] Getting full content from Wikipedia...")
-        content = await wikipedia_searcher.get_full_content(search_results.url)
+        logger.info(f"[{request_id}] Found {len(search_results_list)} Wikipedia articles")
         
-        if not content:
-            logger.error(f"[{request_id}] Could not retrieve content from URL: {search_results.url}")
-            raise HTTPException(status_code=404, detail="Could not retrieve content")
-            
-        # Log content length and first 100 characters
-        content_length = len(content)
-        logger.info(f"[{request_id}] Retrieved content length: {content_length} characters")
-        logger.info(f"[{request_id}] Content preview: {content[:100]}...")
-        
-        logger.info(f"[{request_id}] Starting content summarization...")
-        try:
-            summary = await summarizer.summarize(content)
-            logger.info(f"[{request_id}] Summary generated successfully")
-            logger.info(f"[{request_id}] Summary length: {len(summary.summary)} characters")
-            logger.info(f"[{request_id}] Summary preview: {summary.summary[:100]}...")
-        except Exception as summary_error:
-            logger.error(f"[{request_id}] Error during summarization: {str(summary_error)}")
-            logger.error(f"[{request_id}] Error type: {type(summary_error).__name__}")
-            raise
-        
-        # Store result in database
-        logger.info(f"[{request_id}] Storing search result in database...")
-        db_result = models.SearchResult(
-            query_id=db_query.id,
-            wikipedia_url=search_results.url,
-            title=search_results.title,
-            content=content,
-            summary=summary.summary
-        )
-        db.add(db_result)
-        db.commit()
-        logger.info(f"[{request_id}] Search result stored successfully")
-        
+        # Return search results for user confirmation
         return {
-            "status": "success",
-            "title": search_results.title,
-            "url": search_results.url,
-            "summary": summary.summary,
+            "status": "needs_confirmation",
+            "search_results": [
+                {
+                    "title": result.title,
+                    "url": result.url
+                } for result in search_results_list
+            ],
+            "query_id": db_query.id,
+            "original_query": request.query,
+            "extracted_topic": topic_extraction.topic,
             "agent_info": {
-                "name": "Summarizer",
-                "status": "completed",
-                "current_operation": "summarization",
-                "content_length": content_length,
+                "name": "WikipediaSearcher",
+                "status": "search_complete",
+                "current_operation": "search",
                 "request_id": request_id
             }
         }
@@ -192,34 +152,17 @@ async def process_query(
         if "topic_extractor" in error_details:
             current_agent = "TopicExtractor"
             current_operation = "topic_extraction"
-        elif "disambiguator" in error_details:
-            current_agent = "Disambiguator"
-            current_operation = "disambiguation"
         elif "wikipedia_searcher" in error_details:
             current_agent = "WikipediaSearcher"
             current_operation = "search"
-        elif "summarizer" in error_details:
-            current_agent = "Summarizer"
-            current_operation = "summarization"
             
         logger.error(f"[{request_id}] Error in {current_agent} during {current_operation}")
         logger.error(f"[{request_id}] Error type: {error_type}")
         logger.error(f"[{request_id}] Error details: {error_details}")
         
-        # Add more detailed error information
-        error_info = {
-            "error": str(e),
-            "error_type": error_type,
-            "agent": current_agent,
-            "operation": current_operation,
-            "request_id": request_id,
-            "type": "context_length_exceeded" if "context_length_exceeded" in error_details else "unknown",
-            "content_length": content_length if 'content_length' in locals() else None
-        }
-        
         raise HTTPException(
             status_code=400,
-            detail=error_info,
+            detail=str(e),
             headers={
                 "X-Agent-Info": current_agent,
                 "X-Operation": current_operation,
@@ -227,41 +170,92 @@ async def process_query(
             }
         )
 
-@app.post("/api/v1/disambiguate")
-async def handle_disambiguation(
+@app.post("/api/v1/confirm")
+async def confirm_search_result(
     request: DisambiguationRequest,
     db: Session = Depends(get_db)
 ):
-    """Handle user's disambiguation selection or conversation response."""
+    """Handle user's confirmation of search result or refinement request."""
     try:
         # Get the original query
         db_query = db.query(models.Query).filter(models.Query.id == request.query_id).first()
         if not db_query:
             raise HTTPException(status_code=404, detail="Query not found")
         
-        # Handle the user's response directly
-        selected = await disambiguator.select_option(None, request.user_selected_option)
+        # If user wants to refine the search
+        if not request.user_selected_option.startswith('http'):
+            # Combine the original query with the user's new input
+            combined_query = f"{db_query.original_query} {request.user_selected_option}"
+            
+            # Update both the original query and extracted topic
+            db_query.original_query = combined_query
+            
+            # Extract topic from the combined query
+            topic_extraction = await topic_extractor.extract_topic(combined_query)
+            db_query.extracted_topic = topic_extraction.topic
+            db.commit()
+            
+            # Do another search
+            search_results = await wikipedia_searcher.search(topic_extraction.topic)
+            
+            if not search_results:
+                logger.info(f"No Wikipedia results found for refined query, prompting for clearer information")
+                return {
+                    "status": "needs_clarification",
+                    "message": "I still couldn't find any Wikipedia articles matching your query. Could you please try rephrasing or providing more specific details about what you're looking for?",
+                    "query_id": db_query.id,
+                    "original_query": combined_query,
+                    "extracted_topic": topic_extraction.topic,
+                    "agent_info": {
+                        "name": "WikipediaSearcher",
+                        "status": "no_results",
+                        "current_operation": "search"
+                    }
+                }
+            
+            # Get multiple search results (at least 3)
+            search_results_list = []
+            if isinstance(search_results, list):
+                search_results_list = search_results[:3]  # Take first 3 results
+            else:
+                search_results_list = [search_results]  # Single result case
+            
+            return {
+                "status": "needs_confirmation",
+                "search_results": [
+                    {
+                        "title": result.title,
+                        "url": result.url
+                    } for result in search_results_list
+                ],
+                "query_id": db_query.id,
+                "original_query": combined_query,
+                "extracted_topic": topic_extraction.topic,
+                "agent_info": {
+                    "name": "WikipediaSearcher",
+                    "status": "search_complete",
+                    "current_operation": "search"
+                }
+            }
         
-        # Search Wikipedia with the selected topic
-        search_results = await wikipedia_searcher.search(selected.disambiguated_topic)
+        # If user selected a URL, proceed with scraping and summarization
+        search_results = await wikipedia_searcher.search(db_query.extracted_topic)
         
         if not search_results:
             raise HTTPException(status_code=404, detail="No results found")
         
         # Get content and summarize
-        logger.info(f"Getting full content for topic: {selected.disambiguated_topic}")
-        content = await wikipedia_searcher.get_full_content(search_results.url)
+        content = await wikipedia_searcher.get_full_content(request.user_selected_option)
         
         if not content:
             raise HTTPException(status_code=404, detail="Could not retrieve content")
         
-        logger.info(f"Summarizing content for topic: {selected.disambiguated_topic}")
         summary = await summarizer.summarize(content)
         
-        # Store result in database
+        # Store the result
         db_result = models.SearchResult(
             query_id=db_query.id,
-            wikipedia_url=search_results.url,
+            wikipedia_url=request.user_selected_option,
             title=search_results.title,
             content=content,
             summary=summary.summary
@@ -272,9 +266,9 @@ async def handle_disambiguation(
         return {
             "status": "success",
             "title": search_results.title,
-            "url": search_results.url,
+            "url": request.user_selected_option,
             "summary": summary.summary,
-            "selected_topic": selected.disambiguated_topic,
+            "selected_topic": db_query.extracted_topic,
             "agent_info": {
                 "name": "Summarizer",
                 "status": "completed",
@@ -283,13 +277,12 @@ async def handle_disambiguation(
         }
         
     except Exception as e:
-        # Get the current agent info
         current_agent = "Unknown"
         current_operation = "Unknown"
         
-        if "disambiguator" in str(e):
-            current_agent = "Disambiguator"
-            current_operation = "disambiguation"
+        if "topic_extractor" in str(e):
+            current_agent = "TopicExtractor"
+            current_operation = "topic_extraction"
         elif "wikipedia_searcher" in str(e):
             current_agent = "WikipediaSearcher"
             current_operation = "search"
@@ -332,6 +325,34 @@ async def get_query(query_id: int, db: Session = Depends(get_db)):
         "query": query,
         "results": results
     }
+
+@app.get("/api/v1/health")
+async def health_check(db: Session = Depends(get_db)):
+    """
+    Health check endpoint that verifies the application's health status.
+    Checks database connectivity and returns the status of core services.
+    """
+    try:
+        # Test database connection
+        db.execute("SELECT 1")
+        
+        return {
+            "status": "healthy",
+            "services": {
+                "database": "connected",
+                "api": "operational"
+            },
+            "version": settings.VERSION
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "status": "unhealthy",
+                "error": str(e)
+            }
+        )
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True) 
