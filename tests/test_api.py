@@ -13,8 +13,18 @@ async def test_home_page(client: TestClient):
 async def test_health_check(client: TestClient):
     """Test the health check endpoint."""
     response = client.get("/api/v1/health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+    if response.status_code != 200:
+        error_data = response.json()
+        print(f"Error response: {error_data}")
+        print(f"Headers: {response.headers}")
+        assert False, f"Health check failed with status {response.status_code}: {error_data.get('detail', 'No error detail')}"
+    
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert "services" in data
+    assert data["services"]["database"] == "connected"
+    assert data["services"]["api"] == "operational"
+    assert "version" in data
 
 @pytest.mark.asyncio
 async def test_process_query(client: TestClient):
@@ -51,7 +61,13 @@ async def test_confirm_search_result(client: TestClient):
         }
     )
     
-    assert response.status_code == 200
+    # Add detailed error logging
+    if response.status_code != 200:
+        error_data = response.json()
+        print(f"Error response: {error_data}")
+        print(f"Headers: {response.headers}")
+        assert False, f"Confirm endpoint failed with status {response.status_code}: {error_data.get('detail', 'No error detail')}"
+    
     data = response.json()
     assert data["status"] == "success"
     assert "title" in data

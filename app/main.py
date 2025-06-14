@@ -5,6 +5,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi.requests import Request
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional, Dict
 from pydantic import BaseModel
 import uvicorn
@@ -333,8 +334,8 @@ async def health_check(db: Session = Depends(get_db)):
     Checks database connectivity and returns the status of core services.
     """
     try:
-        # Test database connection
-        db.execute("SELECT 1")
+        # Test database connection using text()
+        db.execute(text("SELECT 1"))
         
         return {
             "status": "healthy",
