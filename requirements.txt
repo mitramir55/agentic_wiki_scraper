@@ -20,3 +20,8 @@ langchain-openai
 openai
 pydantic
 pydantic-core
+tiktoken
+pytest
+pytest-asyncio
+pytest-cov
+httpx

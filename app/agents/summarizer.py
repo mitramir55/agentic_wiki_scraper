@@ -4,7 +4,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains.summarize import load_summarize_chain
 from langchain.docstore.document import Document
 from pydantic import BaseModel, Field
-from typing import List
 import logging
 from app.core.config import settings
 

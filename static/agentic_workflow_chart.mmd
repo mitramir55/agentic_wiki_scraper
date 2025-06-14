@@ -1,0 +1,11 @@
+flowchart TD
+    A["User Query"] --> B["Topic Extraction Agent"]
+    B --> C["Wikipedia Search Agent"]
+    C -- "No Results" --> D["User Clarification"]
+    D --> B
+    C -- "Multiple Results" --> E["User Confirmation"]
+    E -- "Refine Search" --> D
+    E -- "Select Result" --> F["Content Scraping"]
+    F --> G["Summarization Agent"]
+    G --> H["Result Delivery"]
+    H --> I["Database Storage"] 

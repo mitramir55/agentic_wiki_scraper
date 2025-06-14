@@ -40,6 +40,14 @@ docker-compose up --build
 
 The application will be available at `http://localhost:8000`
 
+
+# Demo
+
+Below is a demonstration of the workflow. We see how the system responds to user queries and performs actions.
+
+![Agentic Workflow Demo](static\demo.gif)
+
+
 ## Usage
 
 1. Open your browser and navigate to `http://localhost:8000`
@@ -72,6 +80,12 @@ The application uses a multi-agent architecture:
 2. **Disambiguator**: Handles ambiguous topics with interactive clarification
 3. **Wikipedia Searcher**: Retrieves relevant Wikipedia articles
 4. **Summarizer**: Generates concise summaries using map-reduce chain
+
+## Workflow
+
+The following diagram illustrates the agentic workflow of the application:
+
+![Agentic Workflow](static/diagram.png)
 
 ## Error Handling
 
