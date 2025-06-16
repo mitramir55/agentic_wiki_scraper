@@ -10,6 +10,7 @@ class Query(Base):
     extracted_topic = Column(String(255))
     is_ambiguous = Column(Boolean, default=False)
     confidence = Column(Float, default=0.0)
+    selected_option = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

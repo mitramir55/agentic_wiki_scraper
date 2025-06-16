@@ -39,6 +39,14 @@ class DisambiguationRequest(BaseModel):
     query_id: int
     user_selected_option: str
 
+class SummarizeRequest(BaseModel):
+    query: str
+
+class SummarizeResponse(BaseModel):
+    query: str
+    summary: str
+    source_url: str
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION
@@ -245,6 +253,10 @@ async def confirm_search_result(
         if not search_results:
             raise HTTPException(status_code=404, detail="No results found")
         
+        # Save the selected option
+        db_query.selected_option = request.user_selected_option
+        db.commit()
+        
         # Get content and summarize
         content = await wikipedia_searcher.get_full_content(request.user_selected_option)
         
@@ -320,11 +332,29 @@ async def get_query(query_id: int, db: Session = Depends(get_db)):
     if not query:
         raise HTTPException(status_code=404, detail="Query not found")
     
+    # Get associated results
     results = db.query(models.SearchResult).filter(models.SearchResult.query_id == query_id).all()
     
     return {
-        "query": query,
-        "results": results
+        "query": {
+            "id": query.id,
+            "original_query": query.original_query,
+            "extracted_topic": query.extracted_topic,
+            "is_ambiguous": query.is_ambiguous,
+            "confidence": query.confidence,
+            "selected_option": query.selected_option,
+            "created_at": query.created_at,
+            "updated_at": query.updated_at
+        },
+        "results": [
+            {
+                "id": result.id,
+                "wikipedia_url": result.wikipedia_url,
+                "title": result.title,
+                "summary": result.summary,
+                "created_at": result.created_at
+            } for result in results
+        ]
     }
 
 @app.get("/api/v1/health")
@@ -353,6 +383,93 @@ async def health_check(db: Session = Depends(get_db)):
                 "status": "unhealthy",
                 "error": str(e)
             }
+        )
+
+@app.post("/api/v1/summarize", response_model=SummarizeResponse)
+async def summarize_wikipedia(
+    request: SummarizeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Process a query, search Wikipedia, and return a summary in one step.
+    If topic extraction fails, falls back to direct Wikipedia search.
+    """
+    request_id = str(uuid.uuid4())[:8]
+    logger.info(f"[{request_id}] Starting summarize request")
+    
+    try:
+        # 1. Try topic extraction first
+        logger.info(f"[{request_id}] Starting topic extraction...")
+        topic_extraction = await topic_extractor.extract_topic(request.query)
+        extracted_topic = topic_extraction.topic
+        logger.info(f"[{request_id}] Topic extracted: {extracted_topic}")
+
+        # Store query in database
+        logger.info(f"[{request_id}] Storing query in database...")
+        db_query = models.Query(
+            original_query=request.query,
+            extracted_topic=extracted_topic
+        )
+        db.add(db_query)
+        db.commit()
+        db.refresh(db_query)
+        
+        # 2. Search Wikipedia
+        logger.info(f"[{request_id}] Searching Wikipedia for topic: {extracted_topic}")
+        search_results = await wikipedia_searcher.search(extracted_topic)
+        
+        if not search_results:
+            raise HTTPException(
+                status_code=404,
+                detail="No Wikipedia articles found for the query. Please try a different search term."
+            )
+        
+        # Get the best matching result
+        if isinstance(search_results, list):
+            best_result = search_results[0]  # Take the first (best) result
+        else:
+            best_result = search_results
+        
+        # Save the selected option
+        db_query.selected_option = best_result.url
+        db.commit()
+        
+        # 3. Get content and summarize
+        logger.info(f"[{request_id}] Getting content from: {best_result.url}")
+        content = await wikipedia_searcher.get_full_content(best_result.url)
+        
+        if not content:
+            raise HTTPException(
+                status_code=404,
+                detail="Could not retrieve article content"
+            )
+        
+        # 4. Generate summary
+        logger.info(f"[{request_id}] Generating summary...")
+        summary = await summarizer.summarize(content)
+        
+        # Store the result
+        db_result = models.SearchResult(
+            query_id=db_query.id,
+            wikipedia_url=best_result.url,
+            title=best_result.title,
+            content=content,
+            summary=summary.summary
+        )
+        db.add(db_result)
+        db.commit()
+        
+        return SummarizeResponse(
+            query=request.query,
+            summary=summary.summary,
+            source_url=best_result.url,
+        )
+        
+    except Exception as e:
+        logger.error(f"[{request_id}] Error in summarize endpoint: {str(e)}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
         )
 
 if __name__ == "__main__":

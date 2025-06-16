@@ -557,10 +557,6 @@
                                 <p class="text-sm text-gray-500">Topic: ${query.extracted_topic}</p>
                                 <p class="text-sm text-gray-500">Created: ${new Date(query.created_at).toLocaleString()}</p>
                             </div>
-                            <button onclick="viewQueryDetails(${query.id})" 
-                                    class="text-blue-600 hover:text-blue-800 text-sm">
-                                View Details
-                            </button>
                         </div>
                     </div>
                 `).join('');

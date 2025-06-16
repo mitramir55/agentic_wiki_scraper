@@ -49,7 +49,7 @@ class Summarizer:
         # Create combine prompt template
         self.combine_prompt = PromptTemplate(
             template="""Write a concise summary of the following text. The summary should:
-            1. Be at most 300 words
+            1. Make sure the summary is at most 300 words. 
             2. Capture the main points and key information
             3. Be clear and easy to understand
             4. Maintain the most important details
